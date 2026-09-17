@@ -1,0 +1,42 @@
+name: Publish Widget to npm
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        working-directory: packages/widget
+        run: npm ci
+
+      - name: Run lint and tests
+        working-directory: packages/widget
+        run: |
+          npm run test:run
+
+      - name: Build bundle
+        working-directory: packages/widget
+        run: npm run build
+
+      - name: Publish to npm
+        working-directory: packages/widget
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public

@@ -1,0 +1,37 @@
+{
+  "name": "js-chat-telegram-widget",
+  "version": "1.0.0",
+  "description": "Zero-dependency, framework-agnostic Custom Element live chat widget connected to Telegram",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "telegram",
+    "livechat",
+    "widget",
+    "web-components",
+    "custom-element",
+    "customer-support"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "vitest": "^1.6.0",
+    "jsdom": "^24.0.0"
+  }
+}

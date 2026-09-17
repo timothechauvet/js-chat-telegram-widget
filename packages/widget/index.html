@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telegram Chat Widget - Interactive Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-surface: #F8FAFC;
+      --text-main: #0F172A;
+      --border-color: #E2E8F0;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-surface);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border-color);
+      background: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      font-size: 20px;
+      font-weight: 700;
+      color: #151946;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: #EBE1D5;
+      color: #7C170D;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    main {
+      flex: 1;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+    .card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #151946;
+    }
+    p {
+      color: #64748B;
+      line-height: 1.6;
+      font-size: 15px;
+      margin-bottom: 16px;
+    }
+    .color-swatches {
+      display: flex;
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .swatch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .swatch-color {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: #F1F5F9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>Telegram Live Chat</span>
+      <span class="badge">Web Component</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h1>Custom Element Showcase</h1>
+      <p>
+        This demo embeds <code>&lt;telegram-chat-widget&gt;</code> configured with the default palette:
+      </p>
+      <div class="color-swatches">
+        <div class="swatch">
+          <div class="swatch-color" style="background: #151946;"></div>
+          <span>Primary: #151946</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #7C170D;"></div>
+          <span>Accent: #7C170D</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #EBE1D5;"></div>
+          <span>Canvas: #EBE1D5</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Interactive Testing & Customization</h2>
+      <p>Test the new responsive features, multiline auto-expanding composer, custom profile pictures, and chime notifications:</p>
+      
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0;">
+        <button id="btn-default-avatar" style="padding: 8px 14px; border-radius: 8px; border: 1px solid #CBD5E1; background: #FFF; font-weight: 600; cursor: pointer;">
+          Default Profile Pic
+        </button>
+        <button id="btn-custom-avatar" style="padding: 8px 14px; border-radius: 8px; border: 1px solid #CBD5E1; background: #FFF; font-weight: 600; cursor: pointer;">
+          Set Custom Avatar (Photo)
+        </button>
+        <button id="btn-multiline-demo" style="padding: 8px 14px; border-radius: 8px; border: 1px solid #CBD5E1; background: #FFF; font-weight: 600; cursor: pointer;">
+          Fill Multiline Text
+        </button>
+        <button id="btn-play-chime" style="padding: 8px 14px; border-radius: 8px; border: 1px solid #CBD5E1; background: #FFF; font-weight: 600; cursor: pointer;">
+          🔔 Audition Chime Sound
+        </button>
+      </div>
+
+      <p style="font-size: 13.5px; color: #64748B;">
+        📱 <b>Mobile responsiveness:</b> Open DevTools (F12 or Cmd+Option+I), toggle Device Mode (iPhone / Android) and test full-screen sheet layout, 100dvh viewport, 16px font size preventing iOS zoom, and bottom/top safe-area insets.
+      </p>
+    </div>
+  </main>
+
+  <script>
+    document.getElementById('btn-default-avatar')?.addEventListener('click', () => {
+      const widget = document.querySelector('telegram-chat-widget');
+      widget?.removeAttribute('profile-pic');
+      widget?.removeAttribute('avatar-url');
+    });
+
+    document.getElementById('btn-custom-avatar')?.addEventListener('click', () => {
+      const widget = document.querySelector('telegram-chat-widget');
+      widget?.setAttribute('profile-pic', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80');
+    });
+
+    document.getElementById('btn-multiline-demo')?.addEventListener('click', () => {
+      const widget = document.querySelector('telegram-chat-widget');
+      const textarea = widget?.shadowRoot?.querySelector('.tg-input-field');
+      if (textarea) {
+        textarea.value = "Hello Support Team!\n\nI have a question regarding:\n1. Shipping and order tracking\n2. Mobile app responsiveness\n3. Notification chimes\n\nThanks for your help!";
+        textarea.dispatchEvent(new Event('input'));
+      }
+    });
+
+    document.getElementById('btn-play-chime')?.addEventListener('click', async () => {
+      const { playChime } = await import('/src/chime.ts');
+      playChime();
+    });
+  </script>
+
+  <!-- Live Chat Widget Custom Element -->
+  <telegram-chat-widget
+    backend-url="http://localhost:8000"
+    site-id="demo-site"
+    primary-color="#151946"
+    accent-color="#7C170D"
+    bg-color="#EBE1D5"
+    font-family="'Plus Jakarta Sans', system-ui, sans-serif"
+    font-url="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+    title="Customer Support"
+    placeholder="Type a message or attach a file..."
+    poll-interval="3000"
+  ></telegram-chat-widget>
+
+  <script type="module" src="/src/index.ts"></script>
+</body>
+</html>

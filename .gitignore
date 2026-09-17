@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+dist/
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+*.sqlite3
+*.db
+data/
+**/data/
+*.log
+coverage/
+.coverage
+htmlcov/
+
+# Environment Variables & Secrets
+.env
+.env.local
+*.local
+
+# Editor & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Agent skills & cache
+.agents/
+skills-lock.json

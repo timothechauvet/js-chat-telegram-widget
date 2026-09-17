@@ -1,0 +1,22 @@
+services:
+  telegram-chat-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-chat-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - chat_data:/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  chat_data:
+    driver: local
