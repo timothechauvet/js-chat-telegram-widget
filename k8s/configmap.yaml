@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telegram-chat-backend-config
+  namespace: telegram-chat
+  labels:
+    app.kubernetes.io/name: telegram-chat-backend
+    app.kubernetes.io/part-of: js-chat-telegram-widget
+data:
+  TELEGRAM_ADMIN_CHAT_ID: "YOUR_TELEGRAM_ADMIN_CHAT_ID"
+  CORS_ALLOW_ORIGINS: "*"
+  HISTORY_RETENTION_HOURS: "72"
+  MAX_UPLOAD_SIZE_MB: "25"
+  DATA_DIR: "/data"
+  TELEGRAM_POLLING_MODE: "false"

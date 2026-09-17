@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: telegram-chat-backend
+  namespace: telegram-chat
+  labels:
+    app.kubernetes.io/name: telegram-chat-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: js-chat-telegram-widget
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  tls:
+    - hosts:
+        - chat.yourdomain.com
+      secretName: telegram-chat-backend-tls
+  rules:
+    - host: chat.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: telegram-chat-backend
+                port:
+                  number: 80

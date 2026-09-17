@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: telegram-chat
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Create the secret before running kustomize:
+# kubectl create secret generic telegram-chat-backend-secret \
+#   --namespace telegram-chat \
+#   --from-literal=TELEGRAM_BOT_TOKEN="<YOUR_BOT_TOKEN>" \
+#   --from-literal=TELEGRAM_WEBHOOK_SECRET="<YOUR_WEBHOOK_SECRET>" \
+#   --from-literal=TELEGRAM_AUTH_SECRET="<YOUR_AUTH_SECRET>" \
+#   --from-literal=BACKEND_SECRET_KEY="<YOUR_BACKEND_SECRET>"

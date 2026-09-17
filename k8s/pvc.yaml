@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: telegram-chat-backend-data
+  namespace: telegram-chat
+  labels:
+    app.kubernetes.io/name: telegram-chat-backend
+    app.kubernetes.io/part-of: js-chat-telegram-widget
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

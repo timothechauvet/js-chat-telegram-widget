@@ -114,6 +114,35 @@ TELEGRAM_POLLING_MODE=false
 SITE_NAMES_MAPPING='{"http://localhost:5173": "Demo Store", "example.com": "Production Store"}'
 ```
 
+### Kubernetes Deployment
+
+Production-ready Kubernetes manifests are provided in the [`k8s/`](./k8s) directory with Kustomize support:
+
+1. **Create secrets**:
+   ```bash
+   kubectl create namespace telegram-chat
+
+   kubectl create secret generic telegram-chat-backend-secret \
+     --namespace telegram-chat \
+     --from-literal=TELEGRAM_BOT_TOKEN="<YOUR_BOT_TOKEN>" \
+     --from-literal=TELEGRAM_WEBHOOK_SECRET="<YOUR_WEBHOOK_SECRET>" \
+     --from-literal=TELEGRAM_AUTH_SECRET="<YOUR_AUTH_SECRET>" \
+     --from-literal=BACKEND_SECRET_KEY="<YOUR_BACKEND_SECRET>"
+   ```
+
+2. **Deploy via Kustomize**:
+   ```bash
+   # Update domain in k8s/ingress.yaml first, then:
+   kubectl apply -k k8s/
+   ```
+
+   - **Image**: `ghcr.io/timothechauvet/js-chat-telegram-widget-backend:latest`
+   - **Storage**: Persistent 5Gi disk mounted at `/data` for `chat.db` and media uploads.
+   - **Security**: Runs under non-root UID `10001` with strict security context.
+   - **Ingress**: Configured with TLS cert-manager annotations and 25MB file upload limit.
+
+👉 For complete instructions, architecture details, and live SQLite backup commands, see the [Kubernetes Deployment Guide](./k8s/README.md).
+
 ---
 
 ## 3. Frontend Widget Integration
