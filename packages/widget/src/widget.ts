@@ -135,6 +135,7 @@ export class TelegramChatWidget extends HTMLElement {
     try {
       const fetched = await this.api.fetchMessages();
       const status = await this.api.getStatus();
+      this.updateLauncherStatus(status.is_online);
       // Show typing indicator when admin online but no recent admin reply
       if (status.is_online && !fetched.some(m => m.sender === 'admin')) {
         this.renderTypingIndicator();
