@@ -222,7 +222,7 @@ async def test_offensive_idor_cross_session_media_theft():
             assert bob_file_res.status_code == 404  # Strictly rejected (unauthorized for Bob)
 
             # Bob tries using Bob's cookie
-            bob_cookie_res = await client.get(f"/api/v1/media/{file_id}", cookies={"tg_chat_token": bob_session})
+            bob_cookie_res = await client.get(f"/api/v1/media/{file_id}", headers={"Cookie": f"tg_chat_token={bob_session}"})
             assert bob_cookie_res.status_code == 404
 
 

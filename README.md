@@ -226,15 +226,15 @@ export default function LiveChat() {
 
 ## 6. CI/CD & Automated Publishing
 
-The repository includes GitHub Actions workflows configured for release tags (`v*.*.*`):
+The repository includes GitHub Actions workflows configured for release tags (`*.*.*`):
 
 1. **`.github/workflows/publish-widget.yml`**:
    - Builds TypeScript distribution (`dist/index.mjs`, `dist/index.js`, `dist/index.d.ts`).
    - Runs full Vitest suite.
-   - Publishes `js-chat-telegram-widget` to the npm registry using `NPM_TOKEN`.
+   - Publishes `js-chat-telegram-widget` to the npm registry using GitHub Actions OIDC Trusted Publishing and provenance.
 2. **`.github/workflows/publish-backend.yml`**:
    - Builds production Docker image using multi-stage non-root container.
-   - Pushes to GitHub Container Registry (`ghcr.io/<owner>/js-chat-telegram-widget-backend`).
+   - Pushes to GitHub Container Registry (`ghcr.io/<owner>/js-chat-telegram-widget-backend`) and Docker Hub (`<username>/js-chat-telegram-backend`).
 
 ---
 

@@ -64,7 +64,7 @@ The repository implements a production-grade, multi-tenant live chat system conn
 │   │   └── test/
 │   │       └── widget.test.ts        # 12 Vitest tests covering all widget features
 │   └── backend/                      # Python FastAPI Gateway
-│       ├── Dockerfile                # Multi-stage non-root container build (python:3.12-slim)
+│       ├── Dockerfile                # Multi-stage non-root container build (python:3.14-slim)
 │       ├── docker-compose.yml        # Local/production Docker Compose definition
 │       ├── requirements.txt          # Production dependencies (fastapi, uvicorn, aiosqlite, etc.)
 │       ├── pytest.ini                # Pytest configuration (asyncio mode = strict)
@@ -236,15 +236,15 @@ Tests verify:
   - `dist/index.mjs` (ES Module)
   - `dist/index.js` (CommonJS)
   - `dist/index.d.ts` (TypeScript type declarations)
-- **Secret**: `NPM_TOKEN` stored in GitHub repository secrets.
-- **Trigger**: Push to tag `v*.*.*` or manual `workflow_dispatch`.
+- **Auth**: OIDC Trusted Publishing (`id-token: write`, tokenless authentication directly with npmjs.com).
+- **Trigger**: Push to tag `*.*.*` or manual `workflow_dispatch` with SemVer validation.
 
-### 5.2 GitHub Container Registry (GHCR)
+### 5.2 GitHub Container Registry (GHCR) & Docker Hub
 - **Workflow**: `.github/workflows/publish-backend.yml`
-- **Image Target**: `ghcr.io/<owner>/js-chat-telegram-widget-backend`
+- **Image Target**: `ghcr.io/<owner>/js-chat-telegram-widget-backend` & `<dockerhub-user>/js-chat-telegram-backend`
 - **Build Context**: `packages/backend` using multi-stage Dockerfile.
-- **Secret**: `${{ secrets.GITHUB_TOKEN }}` (built-in GitHub Actions token).
-- **Trigger**: Push to tag `v*.*.*` or manual `workflow_dispatch`.
+- **Secret**: `${{ secrets.GITHUB_TOKEN }}` (built-in GitHub Actions token), `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
+- **Trigger**: Push to tag `*.*.*` or manual `workflow_dispatch`.
 
 ---
 

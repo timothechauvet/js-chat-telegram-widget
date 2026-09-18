@@ -3,8 +3,12 @@ name: Publish Widget to npm
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - '*.*.*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'SemVer version to publish (e.g. 1.0.1; leave blank to use package.json or tag)'
+        required: false
 
 jobs:
   build-and-publish:
@@ -19,12 +23,36 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure modern npm CLI for OIDC Trusted Publishing
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         working-directory: packages/widget
         run: npm ci
+
+      - name: Validate SemVer version & synchronize package.json
+        working-directory: packages/widget
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            TARGET_VERSION="${{ github.event.inputs.version }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            TARGET_VERSION="${{ github.ref_name }}"
+          else
+            TARGET_VERSION=$(node -p "require('./package.json').version")
+          fi
+
+          echo "Publishing version: $TARGET_VERSION"
+
+          # Strict SemVer validation (X.Y.Z)
+          if ! [[ "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version '$TARGET_VERSION' is not a valid SemVer format (expected X.Y.Z, e.g. 1.0.1)"
+            exit 1
+          fi
+
+          npm version "$TARGET_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Run lint and tests
         working-directory: packages/widget
@@ -35,8 +63,6 @@ jobs:
         working-directory: packages/widget
         run: npm run build
 
-      - name: Publish to npm
+      - name: Publish to npm with Provenance via OIDC Trusted Publishing
         working-directory: packages/widget
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public

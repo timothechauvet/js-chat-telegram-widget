@@ -33,7 +33,7 @@ This directory contains production-ready Kubernetes manifests for deploying the 
 ## 🚀 Step-by-Step Deployment
 
 ### Step 1: Container Image Verification
-The backend Docker image is automatically built and published to GHCR upon creating a release tag (e.g. `v1.0.0`) via `.github/workflows/publish-backend.yml`:
+The backend Docker image is automatically built and published to GHCR upon creating a release tag (e.g. `1.0.0`) via `.github/workflows/publish-backend.yml`:
 
 ```bash
 ghcr.io/timothechauvet/js-chat-telegram-widget-backend:latest

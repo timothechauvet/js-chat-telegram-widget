@@ -7,3 +7,9 @@ export { getWidgetStyles } from './styles';
 if (typeof window !== 'undefined' && !customElements.get('telegram-chat-widget')) {
   customElements.define('telegram-chat-widget', TelegramChatWidget);
 }
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'telegram-chat-widget': TelegramChatWidget;
+  }
+}

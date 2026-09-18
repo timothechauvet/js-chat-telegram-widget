@@ -5,12 +5,34 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "unpkg": "dist/index.mjs",
+  "jsdelivr": "dist/index.mjs",
+  "sideEffects": true,
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/timothechauvet/js-chat-telegram-widget.git"
+  },
+  "homepage": "https://github.com/timothechauvet/js-chat-telegram-widget#readme",
+  "bugs": {
+    "url": "https://github.com/timothechauvet/js-chat-telegram-widget/issues"
+  },
+  "author": "Timothé Chauvet <timothe@chauvet.dev>",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc --emitDeclarationOnly",
@@ -24,14 +46,14 @@
     "widget",
     "web-components",
     "custom-element",
-    "customer-support"
+    "customer-support",
+    "chat-widget"
   ],
-  "author": "",
-  "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "vite": "^5.2.11",
-    "vitest": "^1.6.0",
-    "jsdom": "^24.0.0"
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
   }
 }
