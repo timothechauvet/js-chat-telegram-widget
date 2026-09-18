@@ -10,6 +10,10 @@ on:
         description: 'SemVer version to publish (e.g. 1.0.1; leave blank to use package.json or tag)'
         required: false
 
+concurrency:
+  group: publish-widget-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
@@ -63,21 +67,17 @@ jobs:
         working-directory: packages/widget
         run: npm run build
 
-      - name: Check if version is already published on npm
-        id: check_npm
+      - name: Publish to npm with Provenance via OIDC Trusted Publishing
         working-directory: packages/widget
         run: |
-          PKG_NAME=$(node -p "require('./package.json').name")
-          PKG_VER=$(node -p "require('./package.json').version")
-          EXISTS=$(npm view "$PKG_NAME@$PKG_VER" version --silent || true)
-          if [ "$EXISTS" = "$PKG_VER" ]; then
-            echo "::warning::Version $PKG_NAME@$PKG_VER is already published on npm. Skipping publication."
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          PUBLISH_OUTPUT=$(npm publish --provenance --access public 2>&1) || PUBLISH_EXIT=$?
+          if [ ${PUBLISH_EXIT:-0} -ne 0 ]; then
+            if echo "$PUBLISH_OUTPUT" | grep -qE "previously published versions|cannot publish over"; then
+              echo "::warning::Version is already published on npm. Skipping duplicate publish."
+            else
+              echo "$PUBLISH_OUTPUT"
+              exit $PUBLISH_EXIT
+            fi
           else
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
+            echo "$PUBLISH_OUTPUT"
           fi
-
-      - name: Publish to npm with Provenance via OIDC Trusted Publishing
-        if: steps.check_npm.outputs.already_published != 'true'
-        working-directory: packages/widget
-        run: npm publish --provenance --access public
