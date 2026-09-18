@@ -98,8 +98,17 @@ export class ChatApi {
     }
   }
 
+  public getBaseUrl(): string {
+    if (this.backendUrl) return this.backendUrl;
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+      return window.location.origin;
+    }
+    return 'http://localhost:8000';
+  }
+
   public async fetchMessages(since?: number): Promise<ChatMessage[]> {
-    const url = new URL(`${this.backendUrl}/api/v1/messages`);
+    const base = this.getBaseUrl();
+    const url = new URL(`${base}/api/v1/messages`);
     if (since) {
       url.searchParams.set('since', since.toString());
     }
@@ -142,7 +151,8 @@ export class ChatApi {
       headers['X-Page-Url'] = window.location.href;
     }
 
-    const res = await fetch(`${this.backendUrl}/api/v1/send`, {
+    const base = this.getBaseUrl();
+    const res = await fetch(`${base}/api/v1/send`, {
       method: 'POST',
       credentials: 'include',
       headers,
@@ -161,7 +171,8 @@ export class ChatApi {
     if (!mediaUrl) return '';
     let fullUrl = mediaUrl;
     if (!mediaUrl.startsWith('http://') && !mediaUrl.startsWith('https://')) {
-      fullUrl = `${this.backendUrl}${mediaUrl.startsWith('/') ? '' : '/'}${mediaUrl}`;
+      const base = this.getBaseUrl();
+      fullUrl = `${base}${mediaUrl.startsWith('/') ? '' : '/'}${mediaUrl}`;
     }
     try {
       const url = new URL(fullUrl);

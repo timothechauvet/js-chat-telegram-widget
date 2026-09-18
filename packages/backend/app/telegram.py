@@ -199,4 +199,59 @@ class TelegramService:
             return []
 
 
+    async def set_webhook(self, url: str, secret_token: Optional[str] = None, drop_pending_updates: bool = False) -> bool:
+        """Configures Telegram Bot API webhook."""
+        if not self.bot_token:
+            logger.warning("TELEGRAM_BOT_TOKEN is not configured; skipping setWebhook.")
+            return False
+        payload: dict[str, Any] = {
+            "url": url,
+            "drop_pending_updates": drop_pending_updates,
+        }
+        if secret_token:
+            payload["secret_token"] = secret_token
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                res = await client.post(f"{self.base_url}/setWebhook", json=payload)
+                data = res.json()
+                if not data.get("ok"):
+                    logger.error(f"Failed to set Telegram webhook to {url}: {data.get('description')}")
+                    return False
+                logger.info(f"Telegram webhook successfully registered to {url}")
+                return True
+            except Exception as e:
+                logger.error(f"Exception setting Telegram webhook: {e}")
+                return False
+
+    async def delete_webhook(self, drop_pending_updates: bool = False) -> bool:
+        """Deletes Telegram Bot API webhook."""
+        if not self.bot_token:
+            return False
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                res = await client.post(
+                    f"{self.base_url}/deleteWebhook",
+                    json={"drop_pending_updates": drop_pending_updates},
+                )
+                data = res.json()
+                return bool(data.get("ok"))
+            except Exception as e:
+                logger.warning(f"Failed to delete webhook: {e}")
+                return False
+
+    async def get_webhook_info(self) -> dict[str, Any]:
+        """Fetches current webhook status from Telegram."""
+        if not self.bot_token:
+            return {}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                res = await client.get(f"{self.base_url}/getWebhookInfo")
+                data = res.json()
+                if data.get("ok"):
+                    return data.get("result", {})
+            except Exception as e:
+                logger.warning(f"Failed to fetch getWebhookInfo: {e}")
+            return {}
+
+
 telegram_service = TelegramService()

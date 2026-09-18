@@ -8,6 +8,7 @@ from .cleaner import cleaner_loop
 from .config import settings
 from .database import init_db
 from .routes import router
+from .telegram import telegram_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +30,17 @@ async def lifespan(app: FastAPI):
         from .polling import telegram_polling_loop
         polling_task = asyncio.create_task(telegram_polling_loop())
         logger.info("Telegram long-polling task started.")
+    elif settings.TELEGRAM_WEBHOOK_URL and settings.TELEGRAM_BOT_TOKEN:
+        webhook_url = settings.TELEGRAM_WEBHOOK_URL.strip()
+        if not webhook_url.endswith("/api/v1/telegram-webhook"):
+            webhook_url = f"{webhook_url.rstrip('/')}/api/v1/telegram-webhook"
+        secret = (
+            settings.TELEGRAM_WEBHOOK_SECRET
+            if settings.TELEGRAM_WEBHOOK_SECRET and settings.TELEGRAM_WEBHOOK_SECRET != "change-this-webhook-secret"
+            else None
+        )
+        logger.info(f"Configuring Telegram webhook for {webhook_url}...")
+        await telegram_service.set_webhook(webhook_url, secret_token=secret)
 
     yield
     # Shutdown
@@ -46,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Telegram Live Chat Backend",
-    version="1.0.0",
+    version="1.0.3",
     lifespan=lifespan,
 )
 
@@ -70,4 +82,22 @@ app.include_router(router)
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "version": "1.0.3",
+        "polling_mode": settings.TELEGRAM_POLLING_MODE,
+        "webhook_url": settings.TELEGRAM_WEBHOOK_URL or None,
+    }
+
+
+@app.get("/api/v1/webhook-status")
+async def webhook_status():
+    """Returns Telegram webhook info for troubleshooting."""
+    if not settings.TELEGRAM_BOT_TOKEN:
+        return {"configured": False, "detail": "Bot token not configured"}
+    info = await telegram_service.get_webhook_info()
+    return {
+        "configured": True,
+        "expected_url": settings.TELEGRAM_WEBHOOK_URL or None,
+        "telegram_info": info,
+    }

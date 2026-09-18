@@ -11,6 +11,7 @@ os.environ["DATA_DIR"] = temp_data_dir
 os.environ["TELEGRAM_BOT_TOKEN"] = "mock_token"
 os.environ["TELEGRAM_ADMIN_CHAT_ID"] = "12345"
 os.environ["TELEGRAM_WEBHOOK_SECRET"] = "test_secret"
+os.environ["SITE_NAMES_MAPPING"] = '{"http://localhost:5173": "Local Demo Store"}'
 
 from app.main import app
 from app.database import init_db
@@ -29,7 +30,20 @@ async def test_health():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         res = await client.get("/health")
         assert res.status_code == 200
-        assert res.json() == {"status": "healthy"}
+        assert res.json()["status"] == "healthy"
+        assert res.json()["version"] == "1.0.3"
+
+
+@pytest.mark.asyncio
+async def test_webhook_status_endpoint():
+    transport = ASGITransport(app=app)
+    with patch.object(telegram_service, "get_webhook_info", new=AsyncMock(return_value={"url": "https://example.com/webhook"})):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.get("/api/v1/webhook-status")
+            assert res.status_code == 200
+            data = res.json()
+            assert data["configured"] is True
+            assert data["telegram_info"]["url"] == "https://example.com/webhook"
 
 
 @pytest.mark.asyncio

@@ -13,3 +13,4 @@ data:
   MAX_UPLOAD_SIZE_MB: "25"
   DATA_DIR: "/data"
   TELEGRAM_POLLING_MODE: "false"
+  TELEGRAM_WEBHOOK_URL: "https://tgbot.chauvet.dev/api/v1/telegram-webhook"

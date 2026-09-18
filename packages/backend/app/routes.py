@@ -294,29 +294,34 @@ async def send_message(
         await db.commit()
 
     # Set cookie for persistence
+    is_secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     response.set_cookie(
         key="tg_chat_token",
         value=session_id,
         max_age=31536000,
         path="/",
-        samesite="lax",
+        samesite="none" if is_secure else "lax",
+        secure=is_secure,
     )
     return {"status": "ok", "message_id": message_uuid}
 
 
 @router.get("/messages", response_model=list[MessageOut])
 async def get_messages(
+    request: Request,
     response: Response,
     since: Optional[int] = None,
     session_id: str = Depends(verify_session_token),
 ):
     """Retrieves messages strictly belonging to the authenticated session."""
+    is_secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     response.set_cookie(
         key="tg_chat_token",
         value=session_id,
         max_age=31536000,
         path="/",
-        samesite="lax",
+        samesite="none" if is_secure else "lax",
+        secure=is_secure,
     )
     query = """
         SELECT id, session_id, sender, text, media_type, media_url, created_at
@@ -394,14 +399,29 @@ async def telegram_webhook(
     x_telegram_bot_api_secret_token: Optional[str] = Header(None),
 ):
     """Receives webhook updates from Telegram with secret token verification."""
-    if x_telegram_bot_api_secret_token != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid Telegram secret token.",
-        )
+    expected_secret = settings.TELEGRAM_WEBHOOK_SECRET.strip() if settings.TELEGRAM_WEBHOOK_SECRET else ""
+    if expected_secret and expected_secret != "change-this-webhook-secret":
+        if x_telegram_bot_api_secret_token != expected_secret:
+            logger.warning(
+                f"Unauthorized telegram-webhook call. Header: {x_telegram_bot_api_secret_token!r} does not match expected secret."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid Telegram secret token.",
+            )
 
-    payload = await request.json()
-    return await process_telegram_update(payload)
+    try:
+        payload = await request.json()
+    except Exception as e:
+        logger.warning(f"Malformed JSON payload in telegram-webhook: {e}")
+        return {"status": "ignored"}
+
+    try:
+        return await process_telegram_update(payload)
+    except Exception as e:
+        logger.error(f"Error processing Telegram webhook update: {e}", exc_info=True)
+        # Always return 200 OK so Telegram does not retry indefinitely and disable webhook
+        return {"status": "error", "detail": str(e)}
 
 
 async def process_telegram_update(payload: dict) -> dict:
@@ -564,17 +584,23 @@ async def process_telegram_update(payload: dict) -> dict:
                     recent_sessions.append(f"• 🌐 <b>{html.escape(s_name)}</b> (<code>{html.escape(s_url)}</code>) — Session: [<code>{s_short}</code>]")
 
             sess_block = "\n".join(recent_sessions) if recent_sessions else "None currently active"
-            await telegram_service.send_message_to_chat(
-                chat_id=chat_id,
-                text="💡 <b>Hint</b>: Please <b>reply directly</b> to a visitor's message (swipe or right-click → Reply) to send your answer to that session.\n"
-                     "Or send: <code>/reply &lt;session_id&gt; &lt;your message&gt;</code>\n\n"
-                     f"<b>Recent Active Sessions:</b>\n{sess_block}",
-            )
+            try:
+                await telegram_service.send_message_to_chat(
+                    chat_id=chat_id,
+                    text="💡 <b>Hint</b>: Please <b>reply directly</b> to a visitor's message (swipe or right-click → Reply) to send your answer to that session.\n"
+                         "Or send: <code>/reply &lt;session_id&gt; &lt;your message&gt;</code>\n\n"
+                         f"<b>Recent Active Sessions:</b>\n{sess_block}",
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send hint to chat {chat_id}: {e}")
         else:
-            await telegram_service.send_message_to_chat(
-                chat_id=chat_id,
-                text="ℹ️ To subscribe to live chat messages, send: <code>/auth YOUR_SECRET</code>.",
-            )
+            try:
+                await telegram_service.send_message_to_chat(
+                    chat_id=chat_id,
+                    text="ℹ️ To subscribe to live chat messages, send: <code>/auth YOUR_SECRET</code>.",
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send auth prompt to chat {chat_id}: {e}")
         return {"status": "unrecognized_command"}
 
     # =========================================================================

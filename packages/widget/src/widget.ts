@@ -66,6 +66,8 @@ export class TelegramChatWidget extends HTMLElement {
 
     if (name === 'backend-url' || name === 'site-id') {
       this.initApi();
+      this.messages = [];
+      this.startPolling();
     } else if (name === 'poll-interval') {
       this.startPolling();
     } else if (name === 'font-url') {
@@ -134,7 +136,8 @@ export class TelegramChatWidget extends HTMLElement {
       const fetched = await this.api.fetchMessages();
       if (JSON.stringify(fetched) !== JSON.stringify(this.messages)) {
         const isInitial = this.messages.length === 0;
-        const newAdminMessages = fetched.slice(this.messages.length).filter((m) => m.sender === 'admin');
+        const prevAdminIds = new Set(this.messages.filter((m) => m.sender === 'admin').map((m) => m.id));
+        const newAdminMessages = fetched.filter((m) => m.sender === 'admin' && !prevAdminIds.has(m.id));
 
         if (!isInitial && newAdminMessages.length > 0) {
           playChime(this.getAttribute('chime-url'));

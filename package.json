@@ -1,6 +1,6 @@
 {
   "name": "js-chat-telegram-widget-workspace",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "private": true,
   "description": "Telegram live chat widget and backend workspace",
   "scripts": {

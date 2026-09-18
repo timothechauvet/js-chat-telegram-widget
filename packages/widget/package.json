@@ -1,6 +1,6 @@
 {
   "name": "js-chat-telegram-widget",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Zero-dependency, framework-agnostic Custom Element live chat widget connected to Telegram",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

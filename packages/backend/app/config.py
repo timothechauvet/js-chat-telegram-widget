@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_ADMIN_CHAT_ID: str = ""
+    TELEGRAM_WEBHOOK_URL: str = ""
     TELEGRAM_WEBHOOK_SECRET: str = "change-this-webhook-secret"
     TELEGRAM_AUTH_SECRET: str = "change-this-auth-secret"
     BACKEND_SECRET_KEY: str = "change-this-backend-secret"
