@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Telegram Live Chat Backend",
-    version="1.0.3",
+    version="1.1.0",
     lifespan=lifespan,
 )
 

@@ -444,16 +444,6 @@ export class TelegramChatWidget extends HTMLElement {
       });
     });
 
-    // Attach click listeners for images to open in lightbox
-    canvas.querySelectorAll('.tg-bubble-media img').forEach((img) => {
-      img.addEventListener('click', (e) => {
-        const target = e.target as HTMLImageElement;
-        if (target && target.src) {
-          this.openLightbox(target.src);
-        }
-      });
-    });
-
     this.scrollToBottom();
   }
 
