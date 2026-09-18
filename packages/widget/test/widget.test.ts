@@ -157,4 +157,144 @@ describe('TelegramChatWidget Custom Element', () => {
     expect(sendCalled).toBe(true);
     expect(enterEvent.defaultPrevented).toBe(true);
   });
+
+  it('displays Online status in header permanently', () => {
+    const statusText = widget.shadowRoot!.querySelector('.tg-header-status-text');
+    expect(statusText?.textContent).toBe('Online');
+    const dotPulse = widget.shadowRoot!.querySelector('.tg-status-dot-pulse');
+    expect(dotPulse).toBeTruthy();
+  });
+
+  it('renders modern stroke paperclip icon in attachment button', () => {
+    const attachBtn = widget.shadowRoot!.querySelector('.tg-attach-btn') as HTMLButtonElement;
+    expect(attachBtn).toBeTruthy();
+    const svg = attachBtn.querySelector('svg');
+    expect(svg).toBeTruthy();
+    expect(svg?.getAttribute('stroke')).toBe('currentColor');
+    expect(svg?.getAttribute('fill')).toBe('none');
+  });
+
+  it('updates unread badge and launcher has-unread state when unreadCount > 0', () => {
+    const launcher = widget.shadowRoot!.querySelector('.tg-launcher') as HTMLElement;
+    const badge = widget.shadowRoot!.querySelector('.tg-launcher-badge') as HTMLElement;
+
+    expect(badge.style.display).toBe('none');
+    expect(launcher.classList.contains('has-unread')).toBe(false);
+
+    (widget as any).unreadCount = 3;
+    (widget as any).updateBadge();
+
+    expect(badge.style.display).toBe('flex');
+    expect(badge.textContent).toBe('3');
+    expect(launcher.classList.contains('has-unread')).toBe(true);
+
+    // Opening chatbox resets unread count and badge
+    launcher.click();
+    expect((widget as any).unreadCount).toBe(0);
+    expect(badge.style.display).toBe('none');
+    expect(launcher.classList.contains('has-unread')).toBe(false);
+  });
+
+  it('shows speech bubble above circle with unread count and message preview when closed', () => {
+    const bubble = widget.shadowRoot!.querySelector('.tg-launcher-bubble') as HTMLElement;
+    expect(bubble.style.display).toBe('none');
+
+    widget.showNotification({
+      type: 'message',
+      title: '2 unread messages',
+      message: 'Hello! How can we assist you?',
+      duration: 0,
+    });
+
+    expect(bubble.style.display).toBe('flex');
+    expect(bubble.querySelector('.tg-bubble-title')?.textContent).toBe('2 unread messages');
+    expect(bubble.querySelector('.tg-bubble-text')?.textContent).toBe('Hello! How can we assist you?');
+  });
+
+  it('opens chatbox and hides bubble when clicking the speech bubble', () => {
+    const bubble = widget.shadowRoot!.querySelector('.tg-launcher-bubble') as HTMLElement;
+    const chatBox = widget.shadowRoot!.querySelector('.tg-chat-box') as HTMLElement;
+
+    widget.showNotification({
+      type: 'message',
+      title: 'New message',
+      message: 'Click to open',
+      duration: 0,
+    });
+
+    expect(chatBox.classList.contains('is-open')).toBe(false);
+    expect(bubble.style.display).toBe('flex');
+
+    bubble.click();
+
+    expect(chatBox.classList.contains('is-open')).toBe(true);
+    expect(bubble.style.display).toBe('none');
+  });
+
+  it('dismisses launcher bubble when clicking bubble close button without opening chat', () => {
+    const bubble = widget.shadowRoot!.querySelector('.tg-launcher-bubble') as HTMLElement;
+    const chatBox = widget.shadowRoot!.querySelector('.tg-chat-box') as HTMLElement;
+    const closeBtn = bubble.querySelector('.tg-bubble-close') as HTMLElement;
+
+    widget.showNotification({
+      type: 'error',
+      title: 'Notice',
+      message: 'Something happened',
+      duration: 0,
+    });
+
+    expect(bubble.style.display).toBe('flex');
+    expect(chatBox.classList.contains('is-open')).toBe(false);
+
+    closeBtn.click();
+
+    expect(bubble.style.display).toBe('none');
+    expect(chatBox.classList.contains('is-open')).toBe(false);
+  });
+
+  it('displays in-chat toast alert when chat is open', () => {
+    const launcher = widget.shadowRoot!.querySelector('.tg-launcher') as HTMLButtonElement;
+    launcher.click(); // open chat
+
+    const toast = widget.shadowRoot!.querySelector('.tg-chat-toast') as HTMLElement;
+    expect(toast.style.display).toBe('none');
+
+    widget.showNotification({
+      type: 'error',
+      message: 'File upload failed: network issue',
+      duration: 0,
+    });
+
+    expect(toast.style.display).toBe('flex');
+    expect(toast.querySelector('.tg-toast-text')?.textContent).toBe('File upload failed: network issue');
+
+    const toastClose = toast.querySelector('.tg-toast-close') as HTMLElement;
+    toastClose.click();
+    expect(toast.style.display).toBe('none');
+  });
+
+  it('uses showNotification instead of window.alert when file exceeds 20MB limit', () => {
+    let alertCalled = false;
+    const origAlert = window.alert;
+    window.alert = () => {
+      alertCalled = true;
+    };
+
+    let notificationCalledWith: any = null;
+    widget.showNotification = (opts: any) => {
+      notificationCalledWith = opts;
+    };
+
+    const largeFile = new File(['a'.repeat(100)], 'huge-video.mp4', { type: 'video/mp4' });
+    Object.defineProperty(largeFile, 'size', { value: 25 * 1024 * 1024 });
+
+    (widget as any).stageFile(largeFile);
+
+    expect(alertCalled).toBe(false);
+    expect(notificationCalledWith).not.toBeNull();
+    expect(notificationCalledWith.type).toBe('error');
+    expect(notificationCalledWith.message).toContain('exceeds the 20MB limit');
+
+    window.alert = origAlert;
+  });
 });

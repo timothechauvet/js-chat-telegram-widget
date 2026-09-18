@@ -31,7 +31,23 @@ async def test_health():
         res = await client.get("/health")
         assert res.status_code == 200
         assert res.json()["status"] == "healthy"
-        assert res.json()["version"] == "1.0.3"
+        assert res.json()["version"] == "1.2.0"
+
+
+@pytest.mark.asyncio
+async def test_status_endpoint_always_online():
+    transport = ASGITransport(app=app)
+    session_id = "test-session-status-online"
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get(
+            "/api/v1/status",
+            headers={"Authorization": f"Bearer {session_id}"},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["is_online"] is True
+        assert data["is_night"] is False
+
 
 
 @pytest.mark.asyncio

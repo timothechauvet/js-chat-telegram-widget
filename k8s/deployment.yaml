@@ -27,7 +27,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: backend
-          image: ghcr.io/timothechauvet/js-chat-telegram-widget-backend:1.0.3
+          image: ghcr.io/timothechauvet/js-chat-telegram-widget-backend:1.2.0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -8,7 +8,7 @@ const ICONS = {
   chat: `<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>`,
   close: `<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
   send: `<svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`,
-  paperclip: `<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:currentColor;"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5V6H9v9.5a3.5 3.5 0 0 0 7 0V5c0-2.21-1.79-4-4-4S5 2.79 5 5v12.5c0 3.31 2.69 6 6 6s6-2.69 6-6V6h-1.5z"/></svg>`,
+  paperclip: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.5-8.5a4 4 0 0 1 5.66 5.66l-8.5 8.5a2 2 0 0 1-2.83-2.83l7.78-7.78"/></svg>`,
   document: `<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`,
   empty: `<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>`,
   check: `<svg viewBox="0 0 24 24" class="tg-check-icon"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`,
@@ -23,6 +23,8 @@ export class TelegramChatWidget extends HTMLElement {
   private isOpen: boolean = false;
   private stagedFile: File | null = null;
   private unreadCount: number = 0;
+  private notificationTimeoutId: number | null = null;
+  private toastTimeoutId: number | null = null;
   private onDocumentKeyDown: ((e: KeyboardEvent) => void) | null = null;
   private onDocumentClick: ((e: MouseEvent) => void) | null = null;
 
@@ -59,6 +61,8 @@ export class TelegramChatWidget extends HTMLElement {
   disconnectedCallback() {
     this.stopPolling();
     this.detachGlobalListeners();
+    this.hideLauncherBubble();
+    this.hideToast();
   }
 
   attributeChangedCallback(name: string, oldValue: string, newValue: string) {
@@ -134,14 +138,6 @@ export class TelegramChatWidget extends HTMLElement {
     if (!this.api) return;
     try {
       const fetched = await this.api.fetchMessages();
-      const status = await this.api.getStatus();
-      this.updateLauncherStatus(status.is_online);
-      // Show typing indicator when admin online but no recent admin reply
-      if (status.is_online && !fetched.some(m => m.sender === 'admin')) {
-        this.renderTypingIndicator();
-      } else {
-        this.removeTypingIndicator();
-      }
       if (JSON.stringify(fetched) !== JSON.stringify(this.messages)) {
         const isInitial = this.messages.length === 0;
         const prevAdminIds = new Set(this.messages.filter((m) => m.sender === 'admin').map((m) => m.id));
@@ -154,6 +150,18 @@ export class TelegramChatWidget extends HTMLElement {
         if (!this.isOpen && newAdminMessages.length > 0) {
           this.unreadCount += newAdminMessages.length;
           this.updateBadge();
+
+          const lastMsg = newAdminMessages[newAdminMessages.length - 1];
+          const textPreview = lastMsg.text
+            ? (lastMsg.text.length > 90 ? lastMsg.text.slice(0, 90) + '...' : lastMsg.text)
+            : (lastMsg.media_type ? `[${lastMsg.media_type}]` : 'Sent an attachment');
+
+          this.showNotification({
+            type: 'message',
+            title: `${this.unreadCount} unread message${this.unreadCount > 1 ? 's' : ''}`,
+            message: textPreview,
+            duration: 8000,
+          });
         }
         this.messages = fetched;
         this.renderMessages();
@@ -175,6 +183,120 @@ export class TelegramChatWidget extends HTMLElement {
     } else {
       badge.style.display = 'none';
       launcher.classList.remove('has-unread');
+    }
+  }
+
+  public showNotification(options: {
+    title?: string;
+    message: string;
+    type?: 'message' | 'error' | 'warning' | 'info';
+    duration?: number;
+  }) {
+    const { title, message, type = 'info', duration = 6000 } = options;
+    if (this.isOpen) {
+      this.showToast(message, type, duration);
+    } else {
+      this.showLauncherBubble(title, message, type, duration);
+    }
+  }
+
+  public showLauncherBubble(
+    title: string | undefined,
+    message: string,
+    type: 'message' | 'error' | 'warning' | 'info',
+    duration: number
+  ) {
+    const bubble = this.shadow.querySelector('.tg-launcher-bubble') as HTMLElement | null;
+    if (!bubble) return;
+
+    if (this.notificationTimeoutId !== null) {
+      window.clearTimeout(this.notificationTimeoutId);
+      this.notificationTimeoutId = null;
+    }
+
+    bubble.className = `tg-launcher-bubble is-${type}`;
+    const badgeEl = bubble.querySelector('.tg-bubble-badge') as HTMLElement | null;
+    const titleEl = bubble.querySelector('.tg-bubble-title') as HTMLElement | null;
+    const textEl = bubble.querySelector('.tg-bubble-text') as HTMLElement | null;
+
+    if (badgeEl) {
+      if (type === 'message' && this.unreadCount > 0) {
+        badgeEl.textContent = this.unreadCount > 9 ? '9+' : this.unreadCount.toString();
+        badgeEl.style.display = 'inline-flex';
+      } else if (type === 'error') {
+        badgeEl.textContent = '!';
+        badgeEl.style.display = 'inline-flex';
+      } else if (type === 'warning') {
+        badgeEl.textContent = 'i';
+        badgeEl.style.display = 'inline-flex';
+      } else {
+        badgeEl.style.display = 'none';
+      }
+    }
+
+    if (titleEl) {
+      titleEl.textContent = title || (type === 'message' ? 'New Message' : type === 'error' ? 'Notice' : 'Live Chat');
+    }
+
+    if (textEl) {
+      textEl.textContent = message;
+    }
+
+    bubble.style.display = 'flex';
+
+    if (duration > 0) {
+      this.notificationTimeoutId = window.setTimeout(() => {
+        this.hideLauncherBubble();
+      }, duration);
+    }
+  }
+
+  public hideLauncherBubble() {
+    const bubble = this.shadow.querySelector('.tg-launcher-bubble') as HTMLElement | null;
+    if (bubble) {
+      bubble.style.display = 'none';
+    }
+    if (this.notificationTimeoutId !== null) {
+      window.clearTimeout(this.notificationTimeoutId);
+      this.notificationTimeoutId = null;
+    }
+  }
+
+  public showToast(message: string, type: 'message' | 'error' | 'warning' | 'info', duration: number) {
+    const toast = this.shadow.querySelector('.tg-chat-toast') as HTMLElement | null;
+    if (!toast) return;
+
+    if (this.toastTimeoutId !== null) {
+      window.clearTimeout(this.toastTimeoutId);
+      this.toastTimeoutId = null;
+    }
+
+    toast.className = `tg-chat-toast is-${type}`;
+    const textEl = toast.querySelector('.tg-toast-text') as HTMLElement | null;
+    const iconEl = toast.querySelector('.tg-toast-icon') as HTMLElement | null;
+
+    if (textEl) textEl.textContent = message;
+    if (iconEl) {
+      iconEl.textContent = type === 'error' ? '⚠️' : 'ℹ️';
+    }
+
+    toast.style.display = 'flex';
+
+    if (duration > 0) {
+      this.toastTimeoutId = window.setTimeout(() => {
+        this.hideToast();
+      }, duration);
+    }
+  }
+
+  public hideToast() {
+    const toast = this.shadow.querySelector('.tg-chat-toast') as HTMLElement | null;
+    if (toast) {
+      toast.style.display = 'none';
+    }
+    if (this.toastTimeoutId !== null) {
+      window.clearTimeout(this.toastTimeoutId);
+      this.toastTimeoutId = null;
     }
   }
 
@@ -227,6 +349,7 @@ export class TelegramChatWidget extends HTMLElement {
       chatBox.classList.add('is-open');
       this.unreadCount = 0;
       this.updateBadge();
+      this.hideLauncherBubble();
       setTimeout(() => {
         const input = this.shadow.querySelector('.tg-input-field') as HTMLTextAreaElement | null;
         input?.focus();
@@ -236,6 +359,7 @@ export class TelegramChatWidget extends HTMLElement {
       launcher.classList.remove('is-open');
       launcher.setAttribute('aria-expanded', 'false');
       chatBox.classList.remove('is-open');
+      this.hideToast();
       launcher.focus();
     }
   }
@@ -250,7 +374,12 @@ export class TelegramChatWidget extends HTMLElement {
   private stageFile(file: File) {
     const maxBytes = 20 * 1024 * 1024;
     if (file.size > maxBytes) {
-      alert(`File "${file.name}" exceeds the 20MB limit.`);
+      this.showNotification({
+        type: 'error',
+        title: 'File too large',
+        message: `File "${file.name}" exceeds the 20MB limit.`,
+        duration: 5000,
+      });
       return;
     }
     this.stagedFile = file;
@@ -338,7 +467,12 @@ export class TelegramChatWidget extends HTMLElement {
       await this.api.sendMessage(text, file || undefined);
       await this.pollMessages();
     } catch (err: any) {
-      alert(`Error sending message: ${err.message || err}`);
+      this.showNotification({
+        type: 'error',
+        title: 'Error sending message',
+        message: `Error sending message: ${err.message || err}`,
+        duration: 6000,
+      });
       this.messages = this.messages.filter((m) => m.id !== tempId);
       this.renderMessages();
     } finally {
@@ -363,33 +497,6 @@ export class TelegramChatWidget extends HTMLElement {
   private closeLightbox() {
     const lightbox = this.shadow.querySelector('.tg-lightbox') as HTMLElement;
     lightbox.classList.remove('is-active');
-  }
-
-  private updateLauncherStatus(isOnline: boolean) {
-    const launcher = this.shadow.querySelector('.tg-launcher');
-    const headerStatus = this.shadow.querySelector('.tg-header-status span');
-    if (launcher) {
-      if (isOnline) launcher.classList.remove('is-offline');
-      else launcher.classList.add('is-offline');
-    }
-    if (headerStatus) {
-      headerStatus.textContent = isOnline ? 'Active now' : 'Offline';
-    }
-  }
-
-  private renderTypingIndicator() {
-    const canvas = this.shadow.querySelector('.tg-messages-canvas');
-    if (!canvas || canvas.querySelector('.tg-typing-indicator')) return;
-    const div = document.createElement('div');
-    div.className = 'tg-typing-indicator';
-    div.innerHTML = '<span class="tg-typing-dot"></span><span class="tg-typing-dot"></span><span class="tg-typing-dot"></span>';
-    canvas.appendChild(div);
-    this.scrollToBottom();
-  }
-
-  private removeTypingIndicator() {
-    const indicator = this.shadow.querySelector('.tg-typing-indicator');
-    if (indicator) indicator.remove();
   }
 
   private renderMessages() {
@@ -566,6 +673,18 @@ export class TelegramChatWidget extends HTMLElement {
     this.shadow.innerHTML = `
       <style>${getWidgetStyles()}</style>
       
+      <!-- Notification Bubble Above Circular Launcher -->
+      <div class="tg-launcher-bubble" style="display:none;" role="alert">
+        <button class="tg-bubble-close" aria-label="Dismiss notification">&times;</button>
+        <div class="tg-bubble-header">
+          <span class="tg-bubble-badge" style="display:none;"></span>
+          <span class="tg-bubble-title"></span>
+        </div>
+        <div class="tg-bubble-body">
+          <div class="tg-bubble-text"></div>
+        </div>
+      </div>
+
       <!-- Launcher Button with Accessible State -->
       <button class="tg-launcher" aria-label="Toggle Live Chat" aria-expanded="false">
         <span class="icon-chat">
@@ -578,6 +697,15 @@ export class TelegramChatWidget extends HTMLElement {
 
       <!-- Chat Box Card -->
       <div class="tg-chat-box" role="dialog" aria-modal="true" aria-label="Live Chat">
+        <!-- In-Chat Toast Alert -->
+        <div class="tg-chat-toast" style="display:none;" role="alert">
+          <div class="tg-toast-content">
+            <span class="tg-toast-icon"></span>
+            <span class="tg-toast-text"></span>
+          </div>
+          <button class="tg-toast-close" aria-label="Dismiss alert">&times;</button>
+        </div>
+
         <!-- Drag & Drop Overlay Zone -->
         <div class="tg-dropzone-overlay">
           ${ICONS.cloudUpload}
@@ -596,7 +724,7 @@ export class TelegramChatWidget extends HTMLElement {
                   <span class="tg-status-dot-pulse"></span>
                   <span class="tg-status-dot"></span>
                 </div>
-                <span>Active now</span>
+                <span class="tg-header-status-text">Online</span>
               </div>
             </div>
           </div>
@@ -633,6 +761,24 @@ export class TelegramChatWidget extends HTMLElement {
     // Event listeners
     this.shadow.querySelector('.tg-launcher')?.addEventListener('click', () => this.toggleOpen());
     this.shadow.querySelector('.tg-close-btn')?.addEventListener('click', () => this.toggleOpen());
+
+    const bubble = this.shadow.querySelector('.tg-launcher-bubble') as HTMLElement | null;
+    bubble?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.tg-bubble-close')) {
+        e.stopPropagation();
+        this.hideLauncherBubble();
+        return;
+      }
+      this.hideLauncherBubble();
+      if (!this.isOpen) {
+        this.toggleOpen();
+      }
+    });
+
+    const toastCloseBtn = this.shadow.querySelector('.tg-toast-close');
+    toastCloseBtn?.addEventListener('click', () => {
+      this.hideToast();
+    });
 
     const chatBox = this.shadow.querySelector('.tg-chat-box') as HTMLElement;
     if (chatBox) {
