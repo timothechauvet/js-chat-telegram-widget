@@ -18,12 +18,12 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Ensure modern npm CLI for OIDC Trusted Publishing
@@ -63,6 +63,21 @@ jobs:
         working-directory: packages/widget
         run: npm run build
 
+      - name: Check if version is already published on npm
+        id: check_npm
+        working-directory: packages/widget
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VER=$(node -p "require('./package.json').version")
+          EXISTS=$(npm view "$PKG_NAME@$PKG_VER" version --silent || true)
+          if [ "$EXISTS" = "$PKG_VER" ]; then
+            echo "::warning::Version $PKG_NAME@$PKG_VER is already published on npm. Skipping publication."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm with Provenance via OIDC Trusted Publishing
+        if: steps.check_npm.outputs.already_published != 'true'
         working-directory: packages/widget
         run: npm publish --provenance --access public
