@@ -173,7 +173,7 @@ export class ChatApi {
       method: 'GET',
       credentials: 'include',
       headers: {
-        Authorization: *** ${this.token}`,
+        Authorization: `Bearer ${this.token}`,
       },
     });
 
