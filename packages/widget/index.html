@@ -196,6 +196,18 @@
     poll-interval="3000"
   ></telegram-chat-widget>
 
+  <script>
+    // Allow URL query params or environment overrides for interactive testing
+    const params = new URLSearchParams(window.location.search);
+    const widget = document.querySelector('telegram-chat-widget');
+    if (widget) {
+      if (params.has('backend-url')) widget.setAttribute('backend-url', params.get('backend-url'));
+      if (params.has('site-id')) widget.setAttribute('site-id', params.get('site-id'));
+      if (params.has('primary-color')) widget.setAttribute('primary-color', params.get('primary-color'));
+      if (params.has('title')) widget.setAttribute('title', params.get('title'));
+    }
+  </script>
+
   <script type="module" src="/src/index.ts"></script>
 </body>
 </html>

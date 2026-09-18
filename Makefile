@@ -22,20 +22,26 @@ help:
 	@echo "=========================================================="
 
 dev run start: setup-env install
-	@echo "🚀 Starting Telegram Live Chat System..."
-	@echo "   • Frontend: http://127.0.0.1:5173/"
-	@echo "   • Backend:  http://127.0.0.1:8000/"
-	@echo "   • Docs:     http://127.0.0.1:8000/docs"
-	@echo "Press [Ctrl+C] to stop all services."
-	@if curl -s -f http://127.0.0.1:8000/health >/dev/null 2>&1; then \
-		echo "⚡ Backend is already running on port 8000. Launching frontend demo..."; \
-		cd packages/widget && npm run dev -- --host 127.0.0.1 --port 5173; \
+	@read -p "Backend Host [127.0.0.1]: " inp_host; \
+	HOST=$${inp_host:-127.0.0.1}; \
+	read -p "Backend Port [8000]: " inp_port; \
+	PORT=$${inp_port:-8000}; \
+	read -p "Frontend Port [5173]: " inp_fport; \
+	FPORT=$${inp_fport:-5173}; \
+	echo "🚀 Starting Telegram Live Chat System..."; \
+	echo "   • Frontend: http://$${HOST}:$${FPORT}/"; \
+	echo "   • Backend:  http://$${HOST}:$${PORT}/"; \
+	echo "   • Docs:     http://$${HOST}:$${PORT}/docs"; \
+	echo "Press [Ctrl+C] to stop all services."; \
+	if curl -s -f "http://$${HOST}:$${PORT}/health" >/dev/null 2>&1; then \
+		echo "⚡ Backend is already running on port $${PORT}. Launching frontend demo..."; \
+		cd packages/widget && npm run dev -- --host "$${HOST}" --port "$${FPORT}"; \
 	else \
 		trap 'kill $$BACKEND_PID $$FRONTEND_PID 2>/dev/null' SIGINT SIGTERM EXIT; \
-		(cd packages/backend && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload) & \
+		(cd packages/backend && .venv/bin/uvicorn app.main:app --host "$${HOST}" --port "$${PORT}" --reload) & \
 		BACKEND_PID=$$!; \
 		sleep 1.5; \
-		(cd packages/widget && npm run dev -- --host 127.0.0.1 --port 5173) & \
+		(cd packages/widget && npm run dev -- --host "$${HOST}" --port "$${FPORT}") & \
 		FRONTEND_PID=$$!; \
 		wait; \
 	fi
@@ -66,12 +72,25 @@ install-frontend:
 	fi
 
 backend: setup-env install-backend
-	@echo "⚙️ Starting backend server on http://127.0.0.1:8000..."
-	cd packages/backend && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+	@read -p "Backend Host [127.0.0.1]: " inp_host; \
+	HOST=$${inp_host:-127.0.0.1}; \
+	read -p "Backend Port [8000]: " inp_port; \
+	PORT=$${inp_port:-8000}; \
+	echo "⚙️  Starting backend server on http://$${HOST}:$${PORT}..."; \
+	cd packages/backend && .venv/bin/uvicorn app.main:app --host "$${HOST}" --port "$${PORT}" --reload
 
 frontend: install-frontend
-	@echo "🎨 Starting widget demo on http://127.0.0.1:5173..."
-	cd packages/widget && npm run dev -- --host 127.0.0.1 --port 5173
+	@read -p "Backend URL [http://localhost:8000]: " inp_backend_url; \
+	BACKEND_URL=$${inp_backend_url:-http://localhost:8000}; \
+	read -p "Site ID [demo-site]: " inp_site_id; \
+	SITE_ID=$${inp_site_id:-demo-site}; \
+	read -p "Frontend Host [127.0.0.1]: " inp_host; \
+	HOST=$${inp_host:-127.0.0.1}; \
+	read -p "Frontend Port [5173]: " inp_port; \
+	PORT=$${inp_port:-5173}; \
+	echo "🎨 Starting widget demo on http://$${HOST}:$${PORT}..."; \
+	echo "🔗 Connected backend: $${BACKEND_URL} (Site ID: $${SITE_ID})"; \
+	cd packages/widget && BACKEND_URL="$${BACKEND_URL}" SITE_ID="$${SITE_ID}" npm run dev -- --host "$${HOST}" --port "$${PORT}"
 
 test: test-backend test-frontend
 

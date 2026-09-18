@@ -293,13 +293,14 @@ async def send_message(
         )
         await db.commit()
 
-    # Set cookie for persistence
+    # Set cookie for cross-origin and same-origin persistence
     response.set_cookie(
         key="tg_chat_token",
         value=session_id,
         max_age=31536000,
         path="/",
-        samesite="lax",
+        samesite="none",
+        secure=True,
     )
     return {"status": "ok", "message_id": message_uuid}
 
@@ -316,7 +317,8 @@ async def get_messages(
         value=session_id,
         max_age=31536000,
         path="/",
-        samesite="lax",
+        samesite="none",
+        secure=True,
     )
     query = """
         SELECT id, session_id, sender, text, media_type, media_url, created_at
