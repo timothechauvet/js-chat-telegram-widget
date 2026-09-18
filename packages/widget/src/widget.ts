@@ -134,6 +134,13 @@ export class TelegramChatWidget extends HTMLElement {
     if (!this.api) return;
     try {
       const fetched = await this.api.fetchMessages();
+      const status = await this.api.getStatus();
+      // Show typing indicator when admin online but no recent admin reply
+      if (status.is_online && !fetched.some(m => m.sender === 'admin')) {
+        this.renderTypingIndicator();
+      } else {
+        this.removeTypingIndicator();
+      }
       if (JSON.stringify(fetched) !== JSON.stringify(this.messages)) {
         const isInitial = this.messages.length === 0;
         const prevAdminIds = new Set(this.messages.filter((m) => m.sender === 'admin').map((m) => m.id));
@@ -357,6 +364,33 @@ export class TelegramChatWidget extends HTMLElement {
     lightbox.classList.remove('is-active');
   }
 
+  private updateLauncherStatus(isOnline: boolean) {
+    const launcher = this.shadow.querySelector('.tg-launcher');
+    const headerStatus = this.shadow.querySelector('.tg-header-status span');
+    if (launcher) {
+      if (isOnline) launcher.classList.remove('is-offline');
+      else launcher.classList.add('is-offline');
+    }
+    if (headerStatus) {
+      headerStatus.textContent = isOnline ? 'Active now' : 'Offline';
+    }
+  }
+
+  private renderTypingIndicator() {
+    const canvas = this.shadow.querySelector('.tg-messages-canvas');
+    if (!canvas || canvas.querySelector('.tg-typing-indicator')) return;
+    const div = document.createElement('div');
+    div.className = 'tg-typing-indicator';
+    div.innerHTML = '<span class="tg-typing-dot"></span><span class="tg-typing-dot"></span><span class="tg-typing-dot"></span>';
+    canvas.appendChild(div);
+    this.scrollToBottom();
+  }
+
+  private removeTypingIndicator() {
+    const indicator = this.shadow.querySelector('.tg-typing-indicator');
+    if (indicator) indicator.remove();
+  }
+
   private renderMessages() {
     const canvas = this.shadow.querySelector('.tg-messages-canvas');
     if (!canvas) return;
@@ -371,7 +405,7 @@ export class TelegramChatWidget extends HTMLElement {
       return;
     }
 
-    canvas.innerHTML = this.messages
+    let html = this.messages
       .map((msg) => {
         const timeFormatted = new Date(msg.created_at * 1000).toLocaleTimeString([], {
           hour: '2-digit',
@@ -392,6 +426,23 @@ export class TelegramChatWidget extends HTMLElement {
         `;
       })
       .join('');
+
+    // If last message is visitor and no reply yet, show "replying soon"
+    if (this.messages.length > 0 && this.messages[this.messages.length - 1].sender === 'visitor') {
+      html += `<div class="tg-msg-system-gray">Someone will reply as soon as possible</div>`;
+    }
+
+    canvas.innerHTML = html;
+
+    // Attach click listeners for images to open in lightbox
+    canvas.querySelectorAll('.tg-bubble-media img').forEach((img) => {
+      img.addEventListener('click', (e) => {
+        const target = e.target as HTMLImageElement;
+        if (target && target.src) {
+          this.openLightbox(target.src);
+        }
+      });
+    });
 
     // Attach click listeners for images to open in lightbox
     canvas.querySelectorAll('.tg-bubble-media img').forEach((img) => {

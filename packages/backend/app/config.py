@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     DATA_DIR: str = "./data"
     TELEGRAM_POLLING_MODE: bool = False
     SITE_NAMES_MAPPING: str = "{}"
+    NIGHT_START: int = 22  # 10 PM Germany time
+    NIGHT_END: int = 9  # 9 AM Germany time
+    OFFLINE_MESSAGE: str = "We are currently offline. Please leave a message and we will reply soon."
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

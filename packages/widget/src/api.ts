@@ -167,6 +167,23 @@ export class ChatApi {
     return (await res.json()) as { status: string; message_id: string };
   }
 
+  public async getStatus(): Promise<{ is_online: boolean; is_night: boolean; offline_message: string }> {
+    const base = this.getBaseUrl();
+    const res = await fetch(`${base}/api/v1/status`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: *** ${this.token}`,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch status: ${res.status} ${res.statusText}`);
+    }
+
+    return (await res.json()) as { is_online: boolean; is_night: boolean; offline_message: string };
+  }
+
   public getAbsoluteMediaUrl(mediaUrl: string): string {
     if (!mediaUrl) return '';
     let fullUrl = mediaUrl;

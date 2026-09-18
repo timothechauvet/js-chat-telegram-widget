@@ -1,6 +1,8 @@
 import html
 import logging
 import mimetypes
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import time
 import uuid
 from typing import Optional
@@ -304,6 +306,32 @@ async def send_message(
         secure=is_secure,
     )
     return {"status": "ok", "message_id": message_uuid}
+
+
+@router.get("/status")
+async def get_status(
+    request: Request,
+    session_id: str = Depends(verify_session_token),
+):
+    now_de = datetime.now(ZoneInfo("Europe/Berlin"))
+    hour = now_de.hour
+    is_night = hour >= settings.NIGHT_START or hour < settings.NIGHT_END
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT created_at FROM messages WHERE sender = 'admin' AND session_id = ? ORDER BY created_at DESC LIMIT 1;",
+            (session_id,),
+        )
+        row = await cursor.fetchone()
+        last_admin_msg = row["created_at"] if row else 0
+        is_active = (int(time.time()) - last_admin_msg) < 900
+
+    return {
+        "is_online": is_active and not is_night,
+        "is_night": is_night,
+        "is_active": is_active,
+        "offline_message": settings.OFFLINE_MESSAGE,
+    }
 
 
 @router.get("/messages", response_model=list[MessageOut])

@@ -134,7 +134,11 @@ button {
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   z-index: 5;
-  transition: transform 200ms var(--ease-spring), opacity 180ms ease;
+  transition: transform 200ms var(--ease-spring), opacity 180ms ease, background-color 300ms ease;
+}
+
+.tg-launcher.is-offline .tg-launcher-online-dot {
+  background-color: #94A3B8;
 }
 
 .tg-launcher.is-open .tg-launcher-online-dot {
@@ -143,8 +147,47 @@ button {
   pointer-events: none;
 }
 
-/* Unread Badge */
-.tg-launcher-badge {
+/* Typing Indicator */
+.tg-typing-indicator {
+  display: flex;
+  gap: 3px;
+  padding: 12px 16px;
+  background: var(--bubble-admin);
+  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) 4px;
+  align-self: flex-start;
+  width: fit-content;
+  box-shadow: var(--shadow-elevation-1);
+  margin-bottom: 8px;
+}
+
+.tg-typing-dot {
+  width: 6px;
+  height: 6px;
+  background: #CBD5E1;
+  border-radius: 50%;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+.tg-typing-dot:nth-child(2) { animation-delay: 200ms; }
+.tg-typing-dot:nth-child(3) { animation-delay: 400ms; }
+
+@keyframes typing-bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-5px); }
+}
+
+/* Gray reply info */
+.tg-msg-system-gray {
+  background: #F1F5F9;
+  color: #64748B;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  margin: 8px 12px;
+  text-align: center;
+  align-self: center;
+}
+
   position: absolute;
   top: -3px;
   right: -3px;
