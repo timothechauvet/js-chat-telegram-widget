@@ -297,4 +297,27 @@ describe('TelegramChatWidget Custom Element', () => {
 
     window.alert = origAlert;
   });
+
+  it('renders typing indicator and updates header status text', () => {
+    const canvas = widget.shadowRoot!.querySelector('.tg-messages-canvas') as HTMLElement;
+    const headerStatus = widget.shadowRoot!.querySelector('.tg-header-status-text') as HTMLElement;
+
+    expect(headerStatus.textContent).toBe('Online');
+    expect(canvas.querySelector('.tg-typing-indicator')).toBeNull();
+
+    widget.renderTypingIndicator();
+
+    expect(widget.isTyping).toBe(true);
+    expect(headerStatus.textContent).toBe('Agent is typing...');
+    const indicator = canvas.querySelector('.tg-typing-indicator');
+    expect(indicator).not.toBeNull();
+    expect(indicator!.querySelectorAll('.tg-typing-dot').length).toBe(3);
+
+    widget.removeTypingIndicator();
+
+    expect(widget.isTyping).toBe(false);
+    expect(headerStatus.textContent).toBe('Online');
+    expect(canvas.querySelector('.tg-typing-indicator')).toBeNull();
+  });
 });
+

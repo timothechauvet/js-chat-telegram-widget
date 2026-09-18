@@ -21,6 +21,7 @@ export class TelegramChatWidget extends HTMLElement {
   private messages: ChatMessage[] = [];
   private pollIntervalId: number | null = null;
   private isOpen: boolean = false;
+  public isTyping: boolean = false;
   private stagedFile: File | null = null;
   private unreadCount: number = 0;
   private notificationTimeoutId: number | null = null;
@@ -138,6 +139,22 @@ export class TelegramChatWidget extends HTMLElement {
     if (!this.api) return;
     try {
       const fetched = await this.api.fetchMessages();
+      let isTyping = this.api.isAdminTyping;
+      try {
+        const status = await this.api.getStatus();
+        if (typeof status.is_typing === 'boolean') {
+          isTyping = status.is_typing;
+        }
+      } catch {
+        // Fallback to isAdminTyping
+      }
+
+      if (isTyping) {
+        this.renderTypingIndicator();
+      } else {
+        this.removeTypingIndicator();
+      }
+
       if (JSON.stringify(fetched) !== JSON.stringify(this.messages)) {
         const isInitial = this.messages.length === 0;
         const prevAdminIds = new Set(this.messages.filter((m) => m.sender === 'admin').map((m) => m.id));
@@ -499,17 +516,63 @@ export class TelegramChatWidget extends HTMLElement {
     lightbox.classList.remove('is-active');
   }
 
+  public renderTypingIndicator() {
+    this.isTyping = true;
+    const headerStatus = this.shadow.querySelector('.tg-header-status-text') as HTMLElement | null;
+    if (headerStatus) {
+      headerStatus.textContent = 'Agent is typing...';
+    }
+    const canvas = this.shadow.querySelector('.tg-messages-canvas');
+    if (!canvas) return;
+    const emptyState = canvas.querySelector('.tg-empty-state');
+    if (emptyState) {
+      emptyState.remove();
+    }
+    if (canvas.querySelector('.tg-typing-indicator')) return;
+    const div = document.createElement('div');
+    div.className = 'tg-typing-indicator';
+    div.innerHTML = '<span class="tg-typing-dot"></span><span class="tg-typing-dot"></span><span class="tg-typing-dot"></span>';
+    canvas.appendChild(div);
+    this.scrollToBottom();
+  }
+
+  public removeTypingIndicator() {
+    const wasTyping = this.isTyping;
+    this.isTyping = false;
+    const headerStatus = this.shadow.querySelector('.tg-header-status-text') as HTMLElement | null;
+    if (headerStatus) {
+      headerStatus.textContent = 'Online';
+    }
+    const indicator = this.shadow.querySelector('.tg-typing-indicator');
+    if (indicator) {
+      indicator.remove();
+    }
+    if (wasTyping && this.messages.length === 0) {
+      this.renderMessages();
+    }
+  }
+
   private renderMessages() {
     const canvas = this.shadow.querySelector('.tg-messages-canvas');
     if (!canvas) return;
 
     if (this.messages.length === 0) {
-      canvas.innerHTML = `
-        <div class="tg-empty-state">
-          ${ICONS.empty}
-          <p>No messages yet. Say hello and our team will get right back to you!</p>
-        </div>
-      `;
+      if (this.isTyping) {
+        canvas.innerHTML = `
+          <div class="tg-typing-indicator">
+            <span class="tg-typing-dot"></span>
+            <span class="tg-typing-dot"></span>
+            <span class="tg-typing-dot"></span>
+          </div>
+        `;
+      } else {
+        canvas.innerHTML = `
+          <div class="tg-empty-state">
+            ${ICONS.empty}
+            <p>No messages yet. Say hello and our team will get right back to you!</p>
+          </div>
+        `;
+      }
       return;
     }
 
@@ -538,6 +601,16 @@ export class TelegramChatWidget extends HTMLElement {
     // If last message is visitor and no reply yet, show "replying soon"
     if (this.messages.length > 0 && this.messages[this.messages.length - 1].sender === 'visitor') {
       html += `<div class="tg-msg-system-gray">Someone will reply as soon as possible</div>`;
+    }
+
+    if (this.isTyping) {
+      html += `
+        <div class="tg-typing-indicator">
+          <span class="tg-typing-dot"></span>
+          <span class="tg-typing-dot"></span>
+          <span class="tg-typing-dot"></span>
+        </div>
+      `;
     }
 
     canvas.innerHTML = html;

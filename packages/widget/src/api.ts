@@ -8,6 +8,7 @@ export interface ChatMessage {
 }
 
 export class ChatApi {
+  public isAdminTyping: boolean = false;
   private backendUrl: string;
   private siteId: string;
   private sessionTokenKey: string;
@@ -125,6 +126,11 @@ export class ChatApi {
       throw new Error(`Failed to fetch messages: ${res.status} ${res.statusText}`);
     }
 
+    const typingHeader = res.headers.get('x-admin-typing') || res.headers.get('X-Admin-Typing');
+    if (typingHeader !== null) {
+      this.isAdminTyping = typingHeader === '1';
+    }
+
     return (await res.json()) as ChatMessage[];
   }
 
@@ -167,7 +173,13 @@ export class ChatApi {
     return (await res.json()) as { status: string; message_id: string };
   }
 
-  public async getStatus(): Promise<{ is_online: boolean; is_night: boolean; offline_message: string }> {
+  public async getStatus(): Promise<{
+    is_online: boolean;
+    is_night: boolean;
+    is_active?: boolean;
+    is_typing?: boolean;
+    offline_message: string;
+  }> {
     const base = this.getBaseUrl();
     const res = await fetch(`${base}/api/v1/status`, {
       method: 'GET',
@@ -181,7 +193,17 @@ export class ChatApi {
       throw new Error(`Failed to fetch status: ${res.status} ${res.statusText}`);
     }
 
-    return (await res.json()) as { is_online: boolean; is_night: boolean; offline_message: string };
+    const data = (await res.json()) as {
+      is_online: boolean;
+      is_night: boolean;
+      is_active?: boolean;
+      is_typing?: boolean;
+      offline_message: string;
+    };
+    if (typeof data.is_typing === 'boolean') {
+      this.isAdminTyping = data.is_typing;
+    }
+    return data;
   }
 
   public getAbsoluteMediaUrl(mediaUrl: string): string {

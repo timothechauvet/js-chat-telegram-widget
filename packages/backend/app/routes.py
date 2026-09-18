@@ -46,6 +46,48 @@ class MessageOut(BaseModel):
     created_at: int
 
 
+class TypingIn(BaseModel):
+    typing: bool = True
+    session_id: Optional[str] = None
+    duration: int = 45
+
+
+_global_typing_until: float = 0.0
+_session_typing_until: dict[str, float] = {}
+_session_cleared_until: dict[str, float] = {}
+
+
+def set_admin_typing(session_id: Optional[str] = None, duration: int = 45) -> None:
+    global _global_typing_until
+    until = time.time() + duration
+    _global_typing_until = max(_global_typing_until, until)
+    if session_id:
+        _session_cleared_until.pop(session_id, None)
+        _session_typing_until[session_id] = max(_session_typing_until.get(session_id, 0.0), until)
+
+
+def clear_admin_typing(session_id: Optional[str] = None) -> None:
+    global _global_typing_until
+    now = time.time()
+    if session_id:
+        _session_typing_until.pop(session_id, None)
+        _session_cleared_until[session_id] = max(_global_typing_until, now + 45)
+    else:
+        _global_typing_until = 0.0
+        _session_typing_until.clear()
+        _session_cleared_until.clear()
+
+
+def is_admin_typing_active(session_id: Optional[str] = None) -> bool:
+    now = time.time()
+    if session_id:
+        if _session_typing_until.get(session_id, 0.0) > now:
+            return True
+        if _session_cleared_until.get(session_id, 0.0) > now:
+            return False
+    return _global_typing_until > now
+
+
 def resolve_site_info(
     request: Request,
     site_id: str,
@@ -253,6 +295,11 @@ async def send_message(
     tg_dispatched: list[tuple[int | str, int]] = []
 
     if target_chats:
+        reply_markup = {
+            "inline_keyboard": [[
+                {"text": "✍️ Typing reply...", "callback_data": f"typing:{session_id[:8]}"}
+            ]]
+        }
         for chat_id in target_chats:
             try:
                 if file and file_bytes and clean_name and content_type:
@@ -263,13 +310,14 @@ async def send_message(
                         content_type=content_type,
                         caption=caption,
                         chat_id=chat_id,
+                        reply_markup=reply_markup,
                     )
                     media_type = m_type
                     tg_dispatched.append((chat_id, tg_msg_id))
                 else:
                     await telegram_service.send_chat_action("typing", chat_id=chat_id)
                     full_text = f"{header_caption}{safe_text}"
-                    tg_msg_id = await telegram_service.send_message(full_text, chat_id=chat_id)
+                    tg_msg_id = await telegram_service.send_message(full_text, chat_id=chat_id, reply_markup=reply_markup)
                     tg_dispatched.append((chat_id, tg_msg_id))
             except Exception as e:
                 logger.error(f"Failed to dispatch message to Telegram admin chat {chat_id}: {e}")
@@ -313,12 +361,42 @@ async def get_status(
     request: Request,
     session_id: str = Depends(verify_session_token),
 ):
+    now = int(time.time())
+    is_typing = False
+
+    async with get_db() as db:
+        cursor = await db.execute(
+            "SELECT id, last_active, created_at FROM sessions WHERE id = ?;",
+            (session_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            last_active = row["last_active"] or row["created_at"] or 0
+            if (now - last_active) < 86400:
+                is_typing = is_admin_typing_active(session_id)
+        else:
+            is_typing = is_admin_typing_active(session_id)
+
     return {
         "is_online": True,
         "is_night": False,
         "is_active": True,
+        "is_typing": is_typing,
         "offline_message": "",
     }
+
+
+@router.post("/typing")
+async def post_typing(
+    payload: TypingIn,
+    request: Request,
+):
+    """Programmatic or hook endpoint to activate/deactivate typing indicator."""
+    if payload.typing:
+        set_admin_typing(payload.session_id, duration=payload.duration)
+    else:
+        clear_admin_typing(payload.session_id)
+    return {"status": "ok", "is_typing": payload.typing}
 
 
 @router.get("/messages", response_model=list[MessageOut])
@@ -351,10 +429,16 @@ async def get_messages(
 
     query += " ORDER BY created_at ASC;"
 
+    now = int(time.time())
     async with get_db() as db:
+        await db.execute("UPDATE sessions SET last_active = ? WHERE id = ?;", (now, session_id))
+        await db.commit()
         cursor = await db.execute(query, params)
         rows = await cursor.fetchall()
-        return [dict(row) for row in rows]
+
+    is_typing = is_admin_typing_active(session_id)
+    response.headers["X-Admin-Typing"] = "1" if is_typing else "0"
+    return [dict(row) for row in rows]
 
 
 @router.get("/media/{file_id}")
@@ -441,6 +525,52 @@ async def telegram_webhook(
 
 async def process_telegram_update(payload: dict) -> dict:
     """Processes a single Telegram update payload (from webhook or polling)."""
+    # 1. Handle callback_query (e.g. clicking "✍️ Typing reply..." button)
+    callback_query = payload.get("callback_query")
+    if callback_query:
+        cb_id = callback_query.get("id")
+        cb_data = callback_query.get("data", "")
+        cb_user = callback_query.get("from", {}).get("first_name", "Admin")
+        if cb_data.startswith("typing:"):
+            sess_prefix = cb_data.split(":", 1)[1]
+            target_sess = None
+            async with get_db() as db:
+                cur = await db.execute(
+                    "SELECT id FROM sessions WHERE id LIKE ? ORDER BY last_active DESC LIMIT 1;",
+                    (f"{sess_prefix}%",),
+                )
+                s_row = await cur.fetchone()
+                if s_row:
+                    target_sess = s_row["id"]
+            set_admin_typing(target_sess, duration=60)
+            await telegram_service.answer_callback_query(
+                callback_query_id=cb_id,
+                text=f"✍️ Typing indicator sent to visitor ({cb_user})!",
+                show_alert=False,
+            )
+            return {"status": "typing_activated", "session_id": target_sess}
+
+    # 2. Handle inline_query (when typing @BotName in Telegram)
+    inline_query = payload.get("inline_query")
+    if inline_query:
+        set_admin_typing(None, duration=20)
+        await telegram_service.answer_inline_query(inline_query.get("id"), results=[])
+        return {"status": "typing_inline"}
+
+    # 3. Handle message_reaction (emoji reactions in Telegram)
+    reaction = payload.get("message_reaction")
+    if reaction:
+        tg_msg_id = reaction.get("message_id")
+        async with get_db() as db:
+            cur = await db.execute(
+                "SELECT session_id FROM telegram_map WHERE telegram_message_id = ? LIMIT 1;",
+                (tg_msg_id,),
+            )
+            r_row = await cur.fetchone()
+            if r_row:
+                set_admin_typing(r_row["session_id"], duration=30)
+                return {"status": "typing_reaction", "session_id": r_row["session_id"]}
+
     message = payload.get("message")
     if not message:
         return {"status": "ignored"}
@@ -532,6 +662,33 @@ async def process_telegram_update(payload: dict) -> dict:
                 )
                 return {"status": "ok"}
 
+            elif cmd in ["/typing", "/type", "/write"]:
+                target_sess = None
+                if arg:
+                    async with get_db() as db:
+                        cur = await db.execute(
+                            "SELECT id FROM sessions WHERE id LIKE ? ORDER BY last_active DESC LIMIT 1;",
+                            (f"{arg.strip()}%",),
+                        )
+                        s_match = await cur.fetchone()
+                        if s_match:
+                            target_sess = s_match["id"]
+                set_admin_typing(target_sess, duration=60)
+                target_str = f"session [<code>{target_sess[:8]}</code>]" if target_sess else "all recent active sessions"
+                await telegram_service.send_message_to_chat(
+                    chat_id=chat_id,
+                    text=f"✍️ <b>Typing indicator activated for {target_str} (60s)!</b>",
+                )
+                return {"status": "typing_activated", "session_id": target_sess}
+
+            elif cmd in ["/stoptyping", "/notyping", "/clear"]:
+                clear_admin_typing()
+                await telegram_service.send_message_to_chat(
+                    chat_id=chat_id,
+                    text="⏹️ <b>Typing indicator cleared.</b>",
+                )
+                return {"status": "typing_cleared"}
+
             elif cmd == "/reply":
                 target_sess: Optional[str] = None
                 admin_reply_text: str = ""
@@ -575,6 +732,8 @@ async def process_telegram_update(payload: dict) -> dict:
                         )
                         await db.commit()
 
+                    clear_admin_typing(target_sess)
+
                     await telegram_service.send_message_to_chat(
                         chat_id=chat_id,
                         text=f"✅ <b>Sent to visitor session [<code>{target_sess[:8]}</code>] on 🌐 {html.escape(w_name)}!</b>",
@@ -583,6 +742,7 @@ async def process_telegram_update(payload: dict) -> dict:
 
         active_chats = await get_active_admin_chats()
         if chat_id in active_chats:
+            set_admin_typing(None, duration=45)
             recent_sessions = []
             async with get_db() as db:
                 sess_cur = await db.execute(
@@ -718,6 +878,8 @@ async def process_telegram_update(payload: dict) -> dict:
         )
         all_mapped = await map_cursor.fetchall()
         await db.commit()
+
+    clear_admin_typing(session_id)
 
     # 3. Emoji & Status update on the original Telegram message(s) with Website Name preserved!
     short_session = session_id[:8]

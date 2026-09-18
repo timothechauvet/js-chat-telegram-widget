@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Telegram Live Chat Backend",
-    version="1.2.0",
+    version="1.2.1",
     lifespan=lifespan,
 )
 
@@ -75,6 +75,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*", "X-Admin-Typing"],
 )
 
 app.include_router(router)
@@ -84,7 +85,7 @@ app.include_router(router)
 async def health():
     return {
         "status": "healthy",
-        "version": "1.2.0",
+        "version": "1.2.1",
         "polling_mode": settings.TELEGRAM_POLLING_MODE,
         "webhook_url": settings.TELEGRAM_WEBHOOK_URL or None,
     }

@@ -31,7 +31,7 @@ async def test_health():
         res = await client.get("/health")
         assert res.status_code == 200
         assert res.json()["status"] == "healthy"
-        assert res.json()["version"] == "1.2.0"
+        assert res.json()["version"] == "1.2.1"
 
 
 @pytest.mark.asyncio
@@ -250,5 +250,106 @@ async def test_website_name_resolution_and_display():
             assert "✅ Status: <b>Replied by @SupportAgent</b>" in edited_text
             assert "Do you have this in size 42?" in edited_text
             assert mock_react.called
+
+
+@pytest.mark.asyncio
+async def test_admin_typing_broadcast_and_clear():
+    transport = ASGITransport(app=app)
+    session_id = "test-session-typing-123"
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Initially typing should be false
+        res = await client.get("/api/v1/status", headers={"Authorization": f"Bearer {session_id}"})
+        assert res.status_code == 200
+        assert res.json()["is_typing"] is False
+
+        # Activate typing via API
+        type_res = await client.post("/api/v1/typing", json={"typing": True, "duration": 30})
+        assert type_res.status_code == 200
+        assert type_res.json()["is_typing"] is True
+
+        # Check status returns is_typing=True
+        res2 = await client.get("/api/v1/status", headers={"Authorization": f"Bearer {session_id}"})
+        assert res2.status_code == 200
+        assert res2.json()["is_typing"] is True
+
+        # Check /api/v1/messages exposes X-Admin-Typing header
+        msg_res = await client.get("/api/v1/messages", headers={"Authorization": f"Bearer {session_id}"})
+        assert msg_res.status_code == 200
+        assert msg_res.headers.get("X-Admin-Typing") == "1"
+
+        # Deactivate typing
+        clear_res = await client.post("/api/v1/typing", json={"typing": False})
+        assert clear_res.status_code == 200
+
+        res3 = await client.get("/api/v1/status", headers={"Authorization": f"Bearer {session_id}"})
+        assert res3.status_code == 200
+        assert res3.json()["is_typing"] is False
+
+
+@pytest.mark.asyncio
+async def test_telegram_typing_button_and_command():
+    transport = ASGITransport(app=app)
+    session_id = "sess-typing-tg-test"
+
+    with patch.object(telegram_service, "send_chat_action", new=AsyncMock()), \
+         patch.object(telegram_service, "send_message", new=AsyncMock(return_value=88888)), \
+         patch.object(telegram_service, "send_message_to_chat", new=AsyncMock(return_value=88889)), \
+         patch.object(telegram_service, "answer_callback_query", new=AsyncMock(return_value=True)) as mock_ans_cb, \
+         patch.object(telegram_service, "edit_message_text", new=AsyncMock(return_value=True)), \
+         patch.object(telegram_service, "set_message_reaction", new=AsyncMock(return_value=True)):
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # 1. Visitor sends a message
+            send_res = await client.post(
+                "/api/v1/send",
+                headers={"Authorization": f"Bearer {session_id}"},
+                data={"site_id": "typing-test-site", "text": "Need help typing"},
+            )
+            assert send_res.status_code == 200
+
+            # 2. Admin clicks "✍️ Typing reply..." callback query
+            cb_payload = {
+                "update_id": 101,
+                "callback_query": {
+                    "id": "cb12345",
+                    "from": {"first_name": "AgentSmith"},
+                    "data": f"typing:{session_id[:8]}",
+                },
+            }
+            wh_cb = await client.post(
+                "/api/v1/telegram-webhook",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test_secret"},
+                json=cb_payload,
+            )
+            assert wh_cb.status_code == 200
+            assert mock_ans_cb.called
+
+            # Check status returns typing=True
+            st_res = await client.get("/api/v1/status", headers={"Authorization": f"Bearer {session_id}"})
+            assert st_res.json()["is_typing"] is True
+
+            # 3. Admin replies -> should clear typing
+            reply_payload = {
+                "update_id": 102,
+                "message": {
+                    "message_id": 99991,
+                    "chat": {"id": 12345},
+                    "from": {"id": 12345, "username": "AgentSmith"},
+                    "reply_to_message": {"message_id": 88888},
+                    "text": "Here is your answer!",
+                },
+            }
+            wh_reply = await client.post(
+                "/api/v1/telegram-webhook",
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test_secret"},
+                json=reply_payload,
+            )
+            assert wh_reply.status_code == 200
+
+            # Status should now be cleared
+            st_cleared = await client.get("/api/v1/status", headers={"Authorization": f"Bearer {session_id}"})
+            assert st_cleared.json()["is_typing"] is False
+
 
 

@@ -1,3 +1,4 @@
+import json
 import httpx
 import logging
 from typing import Any, Optional
@@ -26,26 +27,40 @@ class TelegramService:
             except Exception as e:
                 logger.warning(f"Failed to sendChatAction to Telegram: {e}")
 
-    async def send_message_to_chat(self, chat_id: int | str, text: str, parse_mode: str = "HTML") -> int:
+    async def send_message_to_chat(
+        self,
+        chat_id: int | str,
+        text: str,
+        parse_mode: str = "HTML",
+        reply_markup: Optional[dict] = None,
+    ) -> int:
+        body: dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": parse_mode,
+        }
+        if reply_markup:
+            body["reply_markup"] = reply_markup
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.post(
                 f"{self.base_url}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": text,
-                    "parse_mode": parse_mode,
-                },
+                json=body,
             )
             data = res.json()
             if not data.get("ok"):
                 raise RuntimeError(f"Telegram sendMessage failed for chat {chat_id}: {data.get('description')}")
             return data["result"]["message_id"]
 
-    async def send_message(self, text: str, chat_id: Optional[int | str] = None) -> int:
+    async def send_message(
+        self,
+        text: str,
+        chat_id: Optional[int | str] = None,
+        reply_markup: Optional[dict] = None,
+    ) -> int:
         target_chat = chat_id or self.default_chat_id
         if not target_chat:
             raise RuntimeError("No Telegram admin chat_id available to receive message.")
-        return await self.send_message_to_chat(target_chat, text)
+        return await self.send_message_to_chat(target_chat, text, reply_markup=reply_markup)
 
     async def send_media_to_chat(
         self,
@@ -54,6 +69,7 @@ class TelegramService:
         filename: str,
         content_type: str,
         caption: str = "",
+        reply_markup: Optional[dict] = None,
     ) -> tuple[int, str]:
         """Dispatches media file to appropriate Telegram Bot API method."""
         method = "sendDocument"
@@ -78,6 +94,8 @@ class TelegramService:
         if caption:
             data["caption"] = caption
             data["parse_mode"] = "HTML"
+        if reply_markup:
+            data["reply_markup"] = json.dumps(reply_markup)
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             res = await client.post(
@@ -97,11 +115,48 @@ class TelegramService:
         content_type: str,
         caption: str = "",
         chat_id: Optional[int | str] = None,
+        reply_markup: Optional[dict] = None,
     ) -> tuple[int, str]:
         target_chat = chat_id or self.default_chat_id
         if not target_chat:
             raise RuntimeError("No Telegram admin chat_id available to receive media.")
-        return await self.send_media_to_chat(target_chat, media_bytes, filename, content_type, caption)
+        return await self.send_media_to_chat(
+            target_chat, media_bytes, filename, content_type, caption, reply_markup=reply_markup
+        )
+
+    async def answer_callback_query(
+        self,
+        callback_query_id: str,
+        text: Optional[str] = None,
+        show_alert: bool = False,
+    ) -> bool:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                body: dict[str, Any] = {"callback_query_id": callback_query_id}
+                if text:
+                    body["text"] = text
+                    body["show_alert"] = show_alert
+                res = await client.post(f"{self.base_url}/answerCallbackQuery", json=body)
+                return res.json().get("ok", False)
+            except Exception as e:
+                logger.warning(f"Failed to answerCallbackQuery: {e}")
+                return False
+
+    async def answer_inline_query(
+        self,
+        inline_query_id: str,
+        results: Optional[list] = None,
+    ) -> bool:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                res = await client.post(
+                    f"{self.base_url}/answerInlineQuery",
+                    json={"inline_query_id": inline_query_id, "results": results or []},
+                )
+                return res.json().get("ok", False)
+            except Exception as e:
+                logger.warning(f"Failed to answerInlineQuery: {e}")
+                return False
 
     async def edit_message_text(self, chat_id: int | str, message_id: int, new_text: str, parse_mode: str = "HTML") -> bool:
         """Edits an existing text message."""
